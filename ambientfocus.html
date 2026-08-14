@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>25:00 — Focus | Ambient Focus Timer</title>
+    <meta name="description" content="A calm, distraction-free ambient productivity timer for deep work, coding, and music.">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <!-- PWA Manifest Link -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#111827">
+    <style>
+        @keyframes ambientBreath {
+            0% {
+                background-position: 0% 50%;
+                transform: scale(1);
+            }
+            50% {
+                background-position: 100% 50%;
+                transform: scale(1.04);
+            }
+            100% {
+                background-position: 0% 50%;
+                transform: scale(1);
+            }
+        }
+
+        .ambient-bg {
+            background-size: 200% 200%;
+            animation: ambientBreath 16s ease-in-out infinite;
+        }
+
+        .reduce-motion .ambient-bg {
+            animation: none !important;
+            transform: none !important;
+        }
+
+        /* Smooth transitions for themes and states */
+        body {
+            transition: background-color 2s ease, color 1s ease;
+        }
+
+        /* Custom scrollbar for minimalism */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        /* Pulse glow for focus state */
+        .glow-text {
+            text-shadow: 0 0 35px rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="h-full font-sans text-neutral-100 ambient-bg flex flex-col justify-between overflow-x-hidden selection:bg-white/20 selection:text-white" id="appBody">
+
+    <!-- Top Bar -->
+    <header class="w-full px-6 py-6 flex items-center justify-between z-20 transition-opacity duration-700" id="topBar">
+        <div class="flex items-center space-x-3">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" id="statusIndicator"></span>
+            <span class="text-xs uppercase tracking-widest text-neutral-400 font-medium" id="currentModeLabel">Focus</span>
+        </div>
+
+        <!-- Mode Selector (Segmented Control) -->
+        <nav class="hidden md:flex items-center space-x-1 bg-white/5 backdrop-blur-md p-1 rounded-full border border-white/10 text-xs">
+            <button onclick="timerApp.switchMode('focus')" id="navFocus" class="px-4 py-1.5 rounded-full transition-all duration-300 font-medium text-white bg-white/15">Focus</button>
+            <button onclick="timerApp.switchMode('shortBreak')" id="navShort" class="px-4 py-1.5 rounded-full transition-all duration-300 font-medium text-neutral-400 hover:text-white">Short Break</button>
+            <button onclick="timerApp.switchMode('longBreak')" id="navLong" class="px-4 py-1.5 rounded-full transition-all duration-300 font-medium text-neutral-400 hover:text-white">Long Break</button>
+        </nav>
+
+        <div class="flex items-center space-x-2">
+            <!-- Focus Mode Button -->
+            <button onclick="timerApp.toggleFocusMode()" title="Focus Mode (Fullscreen)" class="p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 hover:text-white transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+            </button>
+            <!-- Ambient Mode Button -->
+            <button onclick="timerApp.toggleAmbientMode()" title="Ambient Mode (Fade UI)" class="p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 hover:text-white transition-all hidden sm:flex">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            </button>
+            <!-- History Button -->
+            <button onclick="timerApp.toggleHistoryModal(true)" title="Session Summary" class="p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 hover:text-white transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </button>
+            <!-- Settings Button -->
+            <button onclick="timerApp.toggleSettingsModal(true)" title="Settings" class="p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 hover:text-white transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col items-center justify-center px-4 py-8 z-10 transition-all duration-700" id="mainContent">
+        <!-- Mobile Mode selector -->
+        <div class="flex md:hidden items-center space-x-1 bg-white/5 backdrop-blur-md p-1 rounded-full border border-white/10 text-xs mb-8">
+            <button onclick="timerApp.switchMode('focus')" id="mNavFocus" class="px-3 py-1 rounded-full text-white bg-white/15">Focus</button>
+            <button onclick="timerApp.switchMode('shortBreak')" id="mNavShort" class="px-3 py-1 rounded-full text-neutral-400">Short</button>
+            <button onclick="timerApp.switchMode('longBreak')" id="mNavLong" class="px-3 py-1 rounded-full text-neutral-400">Long</button>
+        </div>
+
+        <!-- Timer Card / Focal Point -->
+        <div class="text-center group cursor-default select-none" id="timerContainer">
+            <div class="text-[5rem] sm:text-[8rem] md:text-[11rem] font-light tracking-tighter font-mono leading-none glow-text transition-all duration-500" id="timerDisplay">
+                25:00
+            </div>
+            <div class="mt-4 text-xs sm:text-sm uppercase tracking-[0.3em] font-medium text-neutral-300 opacity-80" id="timerStatusLabel">
+                Focus
+            </div>
+            <div class="mt-1 text-xs text-neutral-400 tracking-widest font-light" id="timerSubLabel">
+                Deep work
+            </div>
+        </div>
+
+        <!-- Session Cycle Indicator -->
+        <div class="mt-10 flex flex-col items-center space-y-2 opacity-80 hover:opacity-100 transition-opacity" id="sessionIndicatorContainer">
+            <div class="flex items-center space-x-3" id="sessionDots">
+                <!-- Dynamically rendered dots -->
+            </div>
+            <div class="text-[11px] uppercase tracking-widest text-neutral-400 font-medium" id="sessionText">
+                Session 1 of 4
+            </div>
+        </div>
+
+        <!-- Minimal Controls -->
+        <div class="mt-12 flex items-center space-x-4">
+            <button onclick="timerApp.toggleTimer()" id="startPauseBtn" class="group relative px-8 py-4 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white font-medium text-sm tracking-widest uppercase transition-all duration-300 backdrop-blur-md shadow-lg flex items-center space-x-3 active:scale-95">
+                <span id="startIcon" class="text-lg">▶</span>
+                <span id="startPauseText">Start</span>
+            </button>
+            <button onclick="timerApp.resetTimer()" title="Restart Session (Hold or click)" class="p-4 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 hover:text-white transition-all duration-300 backdrop-blur-md">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </button>
+        </div>
+    </main>
+
+    <!-- Footer / Ambient Info -->
+    <footer class="w-full px-6 py-6 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-400 z-20 transition-opacity duration-700" id="footerBar">
+        <div class="flex items-center space-x-4 mb-3 sm:mb-0">
+            <span class="flex items-center space-x-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" id="offlineIndicator"></span>
+                <span id="networkStatusText">Online (PWA Ready)</span>
+            </span>
+            <span class="hidden sm:inline">•</span>
+            <span class="hidden sm:inline">Press <kbd class="px-1.5 py-0.5 rounded bg-white/10 text-neutral-300 font-mono text-[10px]">Space</kbd> to toggle</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <button onclick="timerApp.toggleCaseStudy(true)" class="hover:text-white transition-colors underline underline-offset-4 decoration-white/20">About & Philosophy</button>
+            <span>•</span>
+            <span class="text-neutral-500">Ambient Focus Timer v2.5</span>
+        </div>
+    </footer>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-lg p-6 sm:p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div class="flex items-center justify-between pb-6 border-b border-white/10">
+                <h2 class="text-lg font-medium text-white tracking-wide">Preferences</h2>
+                <button onclick="timerApp.toggleSettingsModal(false)" class="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="space-y-6 pt-6">
+                <!-- Presets Quick Select -->
+                <div>
+                    <label class="block text-xs uppercase tracking-widest text-neutral-400 mb-3 font-medium">Focus Presets</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button onclick="timerApp.applyPreset('classic')" class="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-left transition-all">
+                            <div class="font-medium text-white">Classic</div>
+                            <div class="text-[10px] text-neutral-400 mt-0.5">25 / 5 min</div>
+                        </button>
+                        <button onclick="timerApp.applyPreset('deepWork')" class="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-left transition-all">
+                            <div class="font-medium text-white">Deep Work</div>
+                            <div class="text-[10px] text-neutral-400 mt-0.5">50 / 10 min</div>
+                        </button>
+                        <button onclick="timerApp.applyPreset('creative')" class="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-left transition-all">
+                            <div class="font-medium text-white">Creative / Piano</div>
+                            <div class="text-[10px] text-neutral-400 mt-0.5">45 / 15 min</div>
+                        </button>
+                        <button onclick="timerApp.applyPreset('quick')" class="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-left transition-all">
+                            <div class="font-medium text-white">Quick Focus</div>
+                            <div class="text-[10px] text-neutral-400 mt-0.5">15 / 5 min</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Timer Durations -->
+                <div class="space-y-4 pt-2">
+                    <label class="block text-xs uppercase tracking-widest text-neutral-400 font-medium">Durations (Minutes)</label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <span class="text-xs text-neutral-400 block mb-1">Focus</span>
+                            <input type="number" id="settingFocusDuration" min="1" max="120" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 font-mono">
+                        </div>
+                        <div>
+                            <span class="text-xs text-neutral-400 block mb-1">Short Break</span>
+                            <input type="number" id="settingShortDuration" min="1" max="60" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 font-mono">
+                        </div>
+                        <div>
+                            <span class="text-xs text-neutral-400 block mb-1">Long Break</span>
+                            <input type="number" id="settingLongDuration" min="1" max="60" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 font-mono">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ambient Theme -->
+                <div class="pt-2">
+                    <label class="block text-xs uppercase tracking-widest text-neutral-400 mb-3 font-medium">Ambient Theme</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        <button onclick="timerApp.setTheme('midnight')" id="themeBtnMidnight" class="px-3 py-2 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs text-white text-center transition-all">Midnight</button>
+                        <button onclick="timerApp.setTheme('forest')" id="themeBtnForest" class="px-3 py-2 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-white text-center transition-all">Forest</button>
+                        <button onclick="timerApp.setTheme('sunset')" id="themeBtnSunset" class="px-3 py-2 rounded-xl bg-amber-950/40 border border-amber-500/30 text-xs text-white text-center transition-all">Sunset</button>
+                        <button onclick="timerApp.setTheme('ocean')" id="themeBtnOcean" class="px-3 py-2 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-xs text-white text-center transition-all">Ocean</button>
+                        <button onclick="timerApp.setTheme('lavender')" id="themeBtnLavender" class="px-3 py-2 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs text-white text-center transition-all">Lavender</button>
+                    </div>
+                </div>
+
+                <!-- Behavior & Toggles -->
+                <div class="space-y-3 pt-2">
+                    <label class="block text-xs uppercase tracking-widest text-neutral-400 font-medium">Behavior</label>
+                    
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <div>
+                            <div class="text-sm font-medium text-white">Auto-start next session</div>
+                            <div class="text-xs text-neutral-400">Automatically begin breaks or focus cycles</div>
+                        </div>
+                        <input type="checkbox" id="settingAutoStart" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <div>
+                            <div class="text-sm font-medium text-white">Gentle Completion Sound</div>
+                            <div class="text-xs text-neutral-400">Soft synthesized bell tone when session completes</div>
+                        </div>
+                        <input type="checkbox" id="settingSound" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <div>
+                            <div class="text-sm font-medium text-white">Browser Notifications</div>
+                            <div class="text-xs text-neutral-400">Notify when session concludes</div>
+                        </div>
+                        <input type="checkbox" id="settingNotifications" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer" onchange="timerApp.requestNotificationPermission(this)">
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <div>
+                            <div class="text-sm font-medium text-white">Reduce Motion</div>
+                            <div class="text-xs text-neutral-400">Disable background breathing animation</div>
+                        </div>
+                        <input type="checkbox" id="settingReduceMotion" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer" onchange="timerApp.toggleReduceMotion(this.checked)">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-white/10 flex justify-end space-x-3">
+                <button onclick="timerApp.toggleSettingsModal(false)" class="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors">Close & Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History / Summary Modal -->
+    <div id="historyModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl">
+            <div class="flex items-center justify-between pb-6 border-b border-white/10">
+                <h2 class="text-lg font-medium text-white tracking-wide">Today's Focus</h2>
+                <button onclick="timerApp.toggleHistoryModal(false)" class="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="py-6 space-y-6">
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="p-4 rounded-2xl bg-white/5 border border-white/5">
+                        <div class="text-2xl font-light text-white font-mono" id="todaySessionsCount">0</div>
+                        <div class="text-xs uppercase tracking-widest text-neutral-400 mt-1">Sessions Completed</div>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-white/5 border border-white/5">
+                        <div class="text-2xl font-light text-emerald-400 font-mono" id="todayFocusTime">0m</div>
+                        <div class="text-xs uppercase tracking-widest text-neutral-400 mt-1">Total Focused Time</div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="text-xs uppercase tracking-widest text-neutral-400 mb-3 font-medium">Recent Sessions Today</div>
+                    <div class="space-y-2 max-h-48 overflow-y-auto pr-1" id="historySessionsList">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-white/10 flex justify-between items-center">
+                <button onclick="timerApp.clearHistory()" class="text-xs text-rose-400 hover:text-rose-300 transition-colors">Reset Today's Log</button>
+                <button onclick="timerApp.toggleHistoryModal(false)" class="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Case Study & Philosophy Modal -->
+    <div id="caseStudyModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-2xl p-6 sm:p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div class="flex items-center justify-between pb-6 border-b border-white/10">
+                <h2 class="text-lg font-medium text-white tracking-wide">Ambient Focus Timer • Case Study</h2>
+                <button onclick="timerApp.toggleCaseStudy(false)" class="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="py-6 space-y-6 text-neutral-300 text-sm leading-relaxed">
+                <div>
+                    <h3 class="text-white font-medium text-base mb-1">What is it?</h3>
+                    <p>A distraction-free productivity timer that uses gentle color shifts and ambient motion to indicate focus intervals and break periods without loud alarms or busy dashboards.</p>
+                </div>
+                <div>
+                    <h3 class="text-white font-medium text-base mb-1">Why I Made It</h3>
+                    <p>I needed a reliable companion tool for writing code and playing piano without jarring alarm sounds. The application is built to sit quietly in the background for hours like a digital room with a clock inside it.</p>
+                </div>
+                <div>
+                    <h3 class="text-white font-medium text-base mb-1">The Process & Technical Notes</h3>
+                    <p>Focused heavily on CSS keyframe gradient breathing in sync with natural pacing. Timer accuracy is calculated using precise unix timestamps (`Date.now()`) rather than drift-prone `setInterval` timers, ensuring absolute accuracy even when laptop sleeps, browser tabs are inactive, or the app is offline.</p>
+                </div>
+                <div>
+                    <h3 class="text-white font-medium text-base mb-1">Keyboard Shortcuts</h3>
+                    <ul class="list-disc list-inside space-y-1 text-neutral-400 font-mono text-xs mt-2">
+                        <li><kbd class="px-1 py-0.5 rounded bg-white/10 text-white">Space</kbd> — Start / Pause timer</li>
+                        <li><kbd class="px-1 py-0.5 rounded bg-white/10 text-white">R</kbd> — Restart session</li>
+                        <li><kbd class="px-1 py-0.5 rounded bg-white/10 text-white">F</kbd> — Toggle Fullscreen Focus mode</li>
+                        <li><kbd class="px-1 py-0.5 rounded bg-white/10 text-white">Esc</kbd> — Exit Focus mode</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="pt-6 border-t border-white/10 flex justify-end">
+                <button onclick="timerApp.toggleCaseStudy(false)" class="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application JavaScript -->
+    <script>
+        // Sound Generator using Web Audio API (No external sound URLs required)
+        class SoundEngine {
+            constructor() {
+                this.audioCtx = null;
+            }
+            init() {
+                if (!this.audioCtx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.audioCtx = new AudioContext();
+                }
+                if (this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
+            }
+            playSoftBell() {
+                try {
+                    this.init();
+                    const now = this.audioCtx.currentTime;
+                    
+                    // Harmonic frequencies for gentle chime
+                    const freqs = [528, 660, 792]; // Solfeggio / calm harmonic chords
+                    freqs.forEach((f, i) => {
+                        const osc = this.audioCtx.createOscillator();
+                        const gain = this.audioCtx.createGain();
+                        
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(f, now);
+                        
+                        gain.gain.setValueAtTime(0.001, now);
+                        gain.gain.exponentialRampToValueAtTime(0.08 / (i + 1), now + 0.05);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.0);
+                        
+                        osc.connect(gain);
+                        gain.connect(this.audioCtx.destination);
+                        
+                        osc.start(now);
+                        osc.stop(now + 3.0);
+                    });
+                } catch (e) {
+                    console.warn("Audio playback prevented or not supported:", e);
+                }
+            }
+        }
+
+        // Main Timer Application Class
+        class AmbientTimerApp {
+            constructor() {
+                // Default settings and state
+                this.settings = {
+                    focusDuration: 25,
+                    shortDuration: 5,
+                    longDuration: 15,
+                    autoStart: false,
+                    soundEnabled: false,
+                    notificationsEnabled: false,
+                    reduceMotion: false,
+                    theme: 'midnight'
+                };
+
+                this.state = {
+                    mode: 'focus', // 'focus' | 'shortBreak' | 'longBreak'
+                    timeLeft: 25 * 60, // in seconds
+                    isRunning: false,
+                    endTime: null,
+                    sessionCount: 1, // 1 to 4
+                    ambientModeActive: false,
+                    history: []
+                };
+
+                this.timerInterval = null;
+                this.soundEngine = new SoundEngine();
+                
+                this.themes = {
+                    midnight: {
+                        name: 'Midnight',
+                        focusBg: 'linear-gradient(135deg, #090d16 0%, #111827 50%, #1e1b4b 100%)',
+                        shortBg: 'linear-gradient(135deg, #022c22 0%, #064e3b 50%, #0f766e 100%)',
+                        longBg: 'linear-gradient(135deg, #451a03 0%, #78350f 50%, #9a3412 100%)',
+                    },
+                    forest: {
+                        name: 'Forest',
+                        focusBg: 'linear-gradient(135deg, #022c22 0%, #064e3b 50%, #134e4a 100%)',
+                        shortBg: 'linear-gradient(135deg, #065f46 0%, #047857 50%, #059669 100%)',
+                        longBg: 'linear-gradient(135deg, #3f3f46 0%, #27272a 50%, #18181b 100%)',
+                    },
+                    sunset: {
+                        name: 'Sunset',
+                        focusBg: 'linear-gradient(135deg, #4c0519 0%, #881337 50%, #9f1239 100%)',
+                        shortBg: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+                        longBg: 'linear-gradient(135deg, #7c2d12 0%, #c2410c 50%, #ea580c 100%)',
+                    },
+                    ocean: {
+                        name: 'Ocean',
+                        focusBg: 'linear-gradient(135deg, #082f49 0%, #0369a1 50%, #0284c7 100%)',
+                        shortBg: 'linear-gradient(135deg, #022c22 0%, #047857 50%, #059669 100%)',
+                        longBg: 'linear-gradient(135deg, #1e1b4b 100%, #312e81 50%, #3730a3 100%)',
+                    },
+                    lavender: {
+                        name: 'Lavender',
+                        focusBg: 'linear-gradient(135deg, #2e1065 0%, #4c1d95 50%, #5b21b6 100%)',
+                        shortBg: 'linear-gradient(135deg, #064e3b 0%, #0f766e 50%, #14b8a6 100%)',
+                        longBg: 'linear-gradient(135deg, #581c87 0%, #7e22ce 50%, #9333ea 100%)',
+                    }
+                };
+
+                this.init();
+            }
+
+            init() {
+                this.loadFromStorage();
+                this.setupServiceWorker();
+                this.renderSessionDots();
+                this.applyThemeStyles();
+                this.syncSettingsUI();
+                this.updateDisplay();
+                this.setupKeyboardShortcuts();
+                this.checkNetworkStatus();
+
+                // Visibility change & window focus listeners to maintain clock accuracy
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden && this.state.isRunning) {
+                        this.recalculateTimer();
+                    }
+                });
+
+                window.addEventListener('online', () => this.updateNetworkStatus(true));
+                window.addEventListener('offline', () => this.updateNetworkStatus(false));
+            }
+
+            // Persistence via LocalStorage
+            saveToStorage() {
+                const data = {
+                    settings: this.settings,
+                    state: {
+                        mode: this.state.mode,
+                        timeLeft: this.state.timeLeft,
+                        isRunning: this.state.isRunning,
+                        endTime: this.state.endTime,
+                        sessionCount: this.state.sessionCount,
+                        history: this.state.history
+                    }
+                };
+                localStorage.setItem('ambient_focus_timer_data', JSON.stringify(data));
+            }
+
+            loadFromStorage() {
+                try {
+                    const raw = localStorage.getItem('ambient_focus_timer_data');
+                    if (raw) {
+                        const data = JSON.parse(raw);
+                        if (data.settings) this.settings = { ...this.settings, ...data.settings };
+                        if (data.state) {
+                            this.state = { ...this.state, ...data.state };
+                            // If timer was running, recalculate remaining time based on timestamp
+                            if (this.state.isRunning && this.state.endTime) {
+                                const now = Date.now();
+                                const remaining = Math.round((this.state.endTime - now) / 1000);
+                                if (remaining > 0) {
+                                    this.state.timeLeft = remaining;
+                                    this.startTimerInterval();
+                                } else {
+                                    this.completeSession();
+                                }
+                            }
+                        }
+                    } else {
+                        // Set initial timer based on mode
+                        this.resetDurationForMode(this.state.mode);
+                    }
+                } catch (e) {
+                    console.error("Error loading local storage:", e);
+                    this.resetDurationForMode('focus');
+                }
+            }
+
+            // Timer Core Logic (Timestamp based to prevent browser throttling drift)
+            toggleTimer() {
+                if (this.state.isRunning) {
+                    this.pauseTimer();
+                } else {
+                    this.startTimer();
+                }
+            }
+
+            startTimer() {
+                if (this.state.isRunning) return;
+                this.soundEngine.init();
+                
+                this.state.isRunning = true;
+                this.state.endTime = Date.now() + (this.state.timeLeft * 1000);
+                this.startTimerInterval();
+                
+                this.updateControlsUI();
+                this.saveToStorage();
+            }
+
+            startTimerInterval() {
+                if (this.timerInterval) clearInterval(this.timerInterval);
+                
+                this.timerInterval = setInterval(() => {
+                    const now = Date.now();
+                    const remaining = Math.round((this.state.endTime - now) / 1000);
+
+                    if (remaining <= 0) {
+                        this.state.timeLeft = 0;
+                        this.updateDisplay();
+                        this.completeSession();
+                    } else {
+                        this.state.timeLeft = remaining;
+                        this.updateDisplay();
+                        this.updateBrowserTitle();
+                    }
+                }, 250);
+            }
+
+            pauseTimer() {
+                if (!this.state.isRunning) return;
+                clearInterval(this.timerInterval);
+                this.state.isRunning = false;
+                this.state.endTime = null;
+                
+                this.updateControlsUI();
+                this.updateBrowserTitle();
+                this.saveToStorage();
+            }
+
+            resetTimer() {
+                clearInterval(this.timerInterval);
+                this.state.isRunning = false;
+                this.state.endTime = null;
+                this.resetDurationForMode(this.state.mode);
+                
+                this.updateControlsUI();
+                this.updateDisplay();
+                this.updateBrowserTitle();
+                this.saveToStorage();
+            }
+
+            recalculateTimer() {
+                if (!this.state.isRunning || !this.state.endTime) return;
+                const now = Date.now();
+                const remaining = Math.round((this.state.endTime - now) / 1000);
+                if (remaining <= 0) {
+                    this.completeSession();
+                } else {
+                    this.state.timeLeft = remaining;
+                    this.updateDisplay();
+                }
+            }
+
+            resetDurationForMode(mode) {
+                switch(mode) {
+                    case 'focus':
+                        this.state.timeLeft = this.settings.focusDuration * 60;
+                        break;
+                    case 'shortBreak':
+                        this.state.timeLeft = this.settings.shortDuration * 60;
+                        break;
+                    case 'longBreak':
+                        this.state.timeLeft = this.settings.longDuration * 60;
+                        break;
+                }
+            }
+
+            switchMode(mode) {
+                if (this.state.isRunning) {
+                    if (!confirm("A session is currently running. Switch mode and reset timer?")) return;
+                }
+                clearInterval(this.timerInterval);
+                this.state.isRunning = false;
+                this.state.endTime = null;
+                this.state.mode = mode;
+                this.resetDurationForMode(mode);
+
+                // Update navigation styling
+                ['focus', 'shortBreak', 'longBreak'].forEach(m => {
+                    const btn = document.getElementById(m === 'focus' ? 'navFocus' : m === 'shortBreak' ? 'navShort' : 'navLong');
+                    const mBtn = document.getElementById(m === 'focus' ? 'mNavFocus' : m === 'shortBreak' ? 'mNavShort' : 'mNavLong');
+                    const active = m === mode;
+                    if (btn) {
+                        btn.className = `px-4 py-1.5 rounded-full transition-all duration-300 font-medium ${active ? 'text-white bg-white/15' : 'text-neutral-400 hover:text-white'}`;
+                    }
+                    if (mBtn) {
+                        mBtn.className = `px-3 py-1 rounded-full transition-all duration-300 ${active ? 'text-white bg-white/15' : 'text-neutral-400'}`;
+                    }
+                });
+
+                this.applyThemeStyles();
+                this.updateControlsUI();
+                this.updateDisplay();
+                this.updateBrowserTitle();
+                this.saveToStorage();
+            }
+
+            completeSession() {
+                clearInterval(this.timerInterval);
+                this.state.isRunning = false;
+                this.state.endTime = null;
+
+                // Play sound if enabled
+                if (this.settings.soundEnabled) {
+                    this.soundEngine.playSoftBell();
+                }
+
+                // Send desktop notification if permitted
+                if (this.settings.notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+                    new Notification("Session Complete", {
+                        body: this.state.mode === 'focus' ? "Focus session finished. Time for a break." : "Break finished. Ready to focus?",
+                        icon: "https://placehold.co/192x192/111827/ffffff?text=⏱️"
+                    });
+                }
+
+                // Log focus session history
+                if (this.state.mode === 'focus') {
+                    const durationMins = this.settings.focusDuration;
+                    this.state.history.push({
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        duration: durationMins
+                    });
+                    
+                    // Increment session cycle
+                    if (this.state.sessionCount >= 4) {
+                        this.state.sessionCount = 1;
+                    } else {
+                        this.state.sessionCount++;
+                    }
+                }
+
+                this.renderSessionDots();
+                this.saveToStorage();
+
+                // Determine next state in cycle
+                let nextMode = 'shortBreak';
+                if (this.state.mode === 'focus') {
+                    nextMode = (this.state.sessionCount === 1) ? 'longBreak' : 'shortBreak';
+                } else {
+                    nextMode = 'focus';
+                }
+
+                if (this.settings.autoStart) {
+                    this.switchMode(nextMode);
+                    this.startTimer();
+                } else {
+                    this.switchMode(nextMode);
+                }
+            }
+
+            // UI Updaters
+            updateDisplay() {
+                const minutes = Math.floor(this.state.timeLeft / 60);
+                const seconds = this.state.timeLeft % 60;
+                const formatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                
+                document.getElementById('timerDisplay').innerText = formatted;
+
+                let statusText = 'Focus';
+                let subText = 'Deep work';
+                if (this.state.mode === 'shortBreak') {
+                    statusText = 'Short Break';
+                    subText = 'Breathe and relax';
+                } else if (this.state.mode === 'longBreak') {
+                    statusText = 'Long Break';
+                    subText = 'Step away and recharge';
+                }
+
+                document.getElementById('timerStatusLabel').innerText = statusText;
+                document.getElementById('timerSubLabel').innerText = subText;
+                document.getElementById('currentModeLabel').innerText = statusText;
+            }
+
+            updateControlsUI() {
+                const textEl = document.getElementById('startPauseText');
+                const iconEl = document.getElementById('startIcon');
+                if (this.state.isRunning) {
+                    textEl.innerText = 'Pause';
+                    iconEl.innerText = '⏸';
+                } else {
+                    textEl.innerText = 'Start';
+                    iconEl.innerText = '▶';
+                }
+            }
+
+            updateBrowserTitle() {
+                const minutes = Math.floor(this.state.timeLeft / 60);
+                const seconds = this.state.timeLeft % 60;
+                const formatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                const modeLabel = this.state.mode === 'focus' ? 'Focus' : 'Break';
+                document.title = `${formatted} — ${modeLabel} | Ambient Focus Timer`;
+            }
+
+            renderSessionDots() {
+                const container = document.getElementById('sessionDots');
+                container.innerHTML = '';
+                for (let i = 1; i <= 4; i++) {
+                    const dot = document.createElement('span');
+                    const active = i <= this.state.sessionCount;
+                    dot.className = `w-2 h-2 rounded-full transition-all duration-300 ${active ? 'bg-white scale-110 shadow-sm' : 'bg-white/20'}`;
+                    container.appendChild(dot);
+                }
+                document.getElementById('sessionText').innerText = `Session ${this.state.sessionCount} of 4`;
+            }
+
+            // Theme & Styling
+            applyThemeStyles() {
+                const theme = this.themes[this.settings.theme] || this.themes.midnight;
+                const body = document.getElementById('appBody');
+                
+                let bgGradient = theme.focusBg;
+                if (this.state.mode === 'shortBreak') bgGradient = theme.shortBg;
+                if (this.state.mode === 'longBreak') bgGradient = theme.longBg;
+
+                body.style.backgroundImage = bgGradient;
+
+                // Highlight active theme button in settings
+                ['midnight', 'forest', 'sunset', 'ocean', 'lavender'].forEach(t => {
+                    const btn = document.getElementById(`themeBtn${t.charAt(0).toUpperCase() + t.slice(1)}`);
+                    if (btn) {
+                        if (t === this.settings.theme) {
+                            btn.className = btn.className.replace('border-white/10', 'border-white ring-2 ring-white/30');
+                        } else {
+                            btn.className = btn.className.replace('ring-2 ring-white/30', 'border-white/10');
+                        }
+                    }
+                });
+            }
+
+            setTheme(themeKey) {
+                this.settings.theme = themeKey;
+                this.applyThemeStyles();
+                this.saveToStorage();
+            }
+
+            // Presets
+            applyPreset(presetKey) {
+                switch(presetKey) {
+                    case 'classic':
+                        this.settings.focusDuration = 25;
+                        this.settings.shortDuration = 5;
+                        this.settings.longDuration = 15;
+                        break;
+                    case 'deepWork':
+                        this.settings.focusDuration = 50;
+                        this.settings.shortDuration = 10;
+                        this.settings.longDuration = 20;
+                        break;
+                    case 'creative':
+                        this.settings.focusDuration = 45;
+                        this.settings.shortDuration = 15;
+                        this.settings.longDuration = 30;
+                        break;
+                    case 'quick':
+                        this.settings.focusDuration = 15;
+                        this.settings.shortDuration = 3;
+                        this.settings.longDuration = 10;
+                        break;
+                }
+                this.syncSettingsUI();
+                this.resetDurationForMode(this.state.mode);
+                this.updateDisplay();
+                this.saveToStorage();
+            }
+
+            // Modes & Views
+            toggleFocusMode() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.warn("Fullscreen request error:", err);
+                    });
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            }
+
+            toggleAmbientMode() {
+                this.state.ambientModeActive = !this.state.ambientModeActive;
+                const topBar = document.getElementById('topBar');
+                const footerBar = document.getElementById('footerBar');
+                const sessionInd = document.getElementById('sessionIndicatorContainer');
+
+                if (this.state.ambientModeActive) {
+                    topBar.style.opacity = '0.08';
+                    footerBar.style.opacity = '0.08';
+                    sessionInd.style.opacity = '0.1';
+                } else {
+                    topBar.style.opacity = '1';
+                    footerBar.style.opacity = '1';
+                    sessionInd.style.opacity = '0.8';
+                }
+            }
+
+            toggleReduceMotion(enabled) {
+                this.settings.reduceMotion = enabled;
+                if (enabled) {
+                    document.documentElement.classList.add('reduce-motion');
+                } else {
+                    document.documentElement.classList.remove('reduce-motion');
+                }
+                this.saveToStorage();
+            }
+
+            // Modals handling
+            toggleSettingsModal(show) {
+                const modal = document.getElementById('settingsModal');
+                if (show) {
+                    this.syncSettingsUI();
+                    modal.classList.remove('hidden');
+                    setTimeout(() => modal.classList.remove('opacity-0'), 10);
+                } else {
+                    this.readSettingsUI();
+                    modal.classList.add('opacity-0');
+                    setTimeout(() => modal.classList.add('hidden'), 300);
+                }
+            }
+
+            toggleHistoryModal(show) {
+                const modal = document.getElementById('historyModal');
+                if (show) {
+                    this.populateHistoryUI();
+                    modal.classList.remove('hidden');
+                    setTimeout(() => modal.classList.remove('opacity-0'), 10);
+                } else {
+                    modal.classList.add('opacity-0');
+                    setTimeout(() => modal.classList.add('hidden'), 300);
+                }
+            }
+
+            toggleCaseStudy(show) {
+                const modal = document.getElementById('caseStudyModal');
+                if (show) {
+                    modal.classList.remove('hidden');
+                    setTimeout(() => modal.classList.remove('opacity-0'), 10);
+                } else {
+                    modal.classList.add('opacity-0');
+                    setTimeout(() => modal.classList.add('hidden'), 300);
+                }
+            }
+
+            syncSettingsUI() {
+                document.getElementById('settingFocusDuration').value = this.settings.focusDuration;
+                document.getElementById('settingShortDuration').value = this.settings.shortDuration;
+                document.getElementById('settingLongDuration').value = this.settings.longDuration;
+                document.getElementById('settingAutoStart').checked = this.settings.autoStart;
+                document.getElementById('settingSound').checked = this.settings.soundEnabled;
+                document.getElementById('settingNotifications').checked = this.settings.notificationsEnabled;
+                document.getElementById('settingReduceMotion').checked = this.settings.reduceMotion;
+            }
+
+            readSettingsUI() {
+                const f = parseInt(document.getElementById('settingFocusDuration').value);
+                const s = parseInt(document.getElementById('settingShortDuration').value);
+                const l = parseInt(document.getElementById('settingLongDuration').value);
+                
+                if (f > 0) this.settings.focusDuration = f;
+                if (s > 0) this.settings.shortDuration = s;
+                if (l > 0) this.settings.longDuration = l;
+
+                this.settings.autoStart = document.getElementById('settingAutoStart').checked;
+                this.settings.soundEnabled = document.getElementById('settingSound').checked;
+                this.settings.notificationsEnabled = document.getElementById('settingNotifications').checked;
+                
+                const reduce = document.getElementById('settingReduceMotion').checked;
+                this.toggleReduceMotion(reduce);
+
+                if (!this.state.isRunning) {
+                    this.resetDurationForMode(this.state.mode);
+                    this.updateDisplay();
+                }
+                this.saveToStorage();
+            }
+
+            requestNotificationPermission(checkbox) {
+                if (checkbox.checked) {
+                    if ('Notification' in window) {
+                        Notification.requestPermission().then(permission => {
+                            if (permission !== 'granted') {
+                                checkbox.checked = false;
+                                alert("Notification permission was denied.");
+                            } else {
+                                this.settings.notificationsEnabled = true;
+                                this.saveToStorage();
+                            }
+                        });
+                    } else {
+                        checkbox.checked = false;
+                        alert("Browser notifications are not supported in this environment.");
+                    }
+                } else {
+                    this.settings.notificationsEnabled = false;
+                    this.saveToStorage();
+                }
+            }
+
+            populateHistoryUI() {
+                const list = document.getElementById('historySessionsList');
+                list.innerHTML = '';
+                
+                let totalMins = 0;
+                this.state.history.forEach(session => {
+                    totalMins += session.duration;
+                    const item = document.createElement('div');
+                    item.className = 'flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 text-xs';
+                    item.innerHTML = `
+                        <div class="flex items-center space-x-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            <span class="text-white font-medium">Focus Session</span>
+                        </div>
+                        <div class="text-neutral-400 font-mono">${session.duration} min • ${session.time}</div>
+                    `;
+                    list.appendChild(item);
+                });
+
+                if (this.state.history.length === 0) {
+                    list.innerHTML = '<div class="text-center py-6 text-xs text-neutral-500">No completed sessions today yet. Take a breath and begin.</div>';
+                }
+
+                document.getElementById('todaySessionsCount').innerText = this.state.history.length;
+                document.getElementById('todayFocusTime').innerText = `${totalMins}m`;
+            }
+
+            clearHistory() {
+                if (confirm("Reset today's focus log?")) {
+                    this.state.history = [];
+                    this.populateHistoryUI();
+                    this.saveToStorage();
+                }
+            }
+
+            // Keyboard Shortcuts
+            setupKeyboardShortcuts() {
+                window.addEventListener('keydown', (e) => {
+                    // Do not trigger shortcuts if typing inside inputs
+                    if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        this.toggleTimer();
+                    } else if (e.key === 'r' || e.key === 'R') {
+                        e.preventDefault();
+                        this.resetTimer();
+                    } else if (e.key === 'f' || e.key === 'F') {
+                        e.preventDefault();
+                        this.toggleFocusMode();
+                    } else if (e.key === 'Escape') {
+                        // Close modals if open
+                        this.toggleSettingsModal(false);
+                        this.toggleHistoryModal(false);
+                        this.toggleCaseStudy(false);
+                    }
+                });
+            }
+
+            // Network status & PWA Service Worker
+            checkNetworkStatus() {
+                this.updateNetworkStatus(navigator.onLine);
+            }
+
+            updateNetworkStatus(isOnline) {
+                const ind = document.getElementById('offlineIndicator');
+                const text = document.getElementById('networkStatusText');
+                if (isOnline) {
+                    ind.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+                    text.innerText = 'Online (PWA Ready)';
+                } else {
+                    ind.className = 'w-1.5 h-1.5 rounded-full bg-amber-400';
+                    text.innerText = 'Offline (Timer Active)';
+                }
+            }
+
+            setupServiceWorker() {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register('service-worker.js').catch(err => {
+                        console.warn("Service Worker registration failed:", err);
+                    });
+                }
+            }
+        }
+
+        // Initialize application on load
+        let timerApp;
+        window.addEventListener('DOMContentLoaded', () => {
+            timerApp = new AmbientTimerApp();
+        });
+    </script>
+</body>
+</html>
